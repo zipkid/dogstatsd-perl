@@ -1,4 +1,6 @@
 dogstatsd-perl
 ==============
 
-A Ruby client for DogStatsd
+A Perl client for DogStatsd
+
+
