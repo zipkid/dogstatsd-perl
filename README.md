@@ -3,12 +3,11 @@ dogstatsd-perl
 
 A Perl client for DogStatsd
 
-== Usage
-
+Usage
 ----
-use DataDog::DogStatsd;
 
-$stat = DataDog::DogStatsd->new;
+    use DataDog::DogStatsd;
 
-$stat->_Stat->increment( 'user.login', { tags => [ $s->cs->param( 'loginName' ) ] } );
-----
+    $stat = DataDog::DogStatsd->new;
+
+    $stat->_Stat->increment( 'user.login', { tags => [ $s->cs->param( 'loginName' ) ] } );
