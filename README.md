@@ -10,4 +10,4 @@ Usage
 
     $stat = DataDog::DogStatsd->new;
 
-    $stat->_Stat->increment( 'user.login', { tags => [ $s->cs->param( 'loginName' ) ] } );
+    $stat->increment( 'user.login', { tags => [ $s->cs->param( 'loginName' ) ] } );
