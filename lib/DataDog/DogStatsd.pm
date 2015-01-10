@@ -124,16 +124,14 @@ sub send_stats {
 		my $tags = '';
 		$tags = "|#".join(',',@{$opts->{'tags'}}) if $opts->{'tags'};
 		my $message = $self->{'namespace'}."${stat}:${delta}|${type}${rate}${tags}";
-		#print $message."\n";
-		$self->send_to_socket( $message );
+		return $self->send_to_socket( $message );
 	}
 }
 
 sub send_to_socket {
 	my $self = shift;
 	my $message = shift;
-	my $ret = $self->_socket()->send( $message );
-	#print "Return from send :$ret:\n";
+	return $self->_socket()->send( $message );
 }
 
 1;
