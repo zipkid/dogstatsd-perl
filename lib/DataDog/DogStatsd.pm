@@ -1,17 +1,13 @@
 package DataDog::DogStatsd;
 
-#use 5.010;
+# ABSTRACT: A Perl client for DogStatsd
+
 use strict;
 use warnings;
-use Carp;
+
+our $VERSION = '0.01';
 
 use IO::Socket::INET;
-
-use Time::HiRes qw( gettimeofday tv_interval );
-
-use Data::Dumper;
-
-my $debug = 0;
 
 # = Statsd: A DogStatsd client (https://www.datadoghq.com)
 #
@@ -27,47 +23,30 @@ my $debug = 0;
 # @example Create a namespaced statsd client and increment 'account.activate'
 #   statsd = Statsd.new('localhost').tap{|sd| sd.namespace = 'account'}
 #   statsd.increment 'activate'
-sub new 
-{
+sub new {
 	my $classname = shift;
 	my $class = ref( $classname ) || $classname;
-	my %p = @_;
-	
-	my $self = {
-		host => $p{'host'} || '127.0.0.1',
-		port => $p{'port'} || 8125,
-		namespace => undef,
-	};
-	bless( $self, $class );
+	my %p = @_ % 2 ? %{$_[0]} : @_;
 
-	$debug = $self->{'debug'};
-	
-	$self->_init(); 
-	
-	return $self;
+	$p{host} ||= '127.0.0.1';
+	$p{port} ||= 8125;
+	$p{namespace} ||= '';
+
+	return bless \%p, $class;
 }
 
-sub DESTROY 
-{
+sub _socket {
 	my $self = shift;
-	# printf("$self dying at %s\n", scalar localtime);
+	return $self->{_socket} if $self->{_socket};
+	$self->{_socket} = IO::Socket::INET->new( PeerAddr => $self->{'host'},
+											  PeerPort => $self->{'port'},
+											  Proto    => 'udp');
+	return $self->{_socket};
 }
 
-sub _init
-{
-  my $self = shift;
-  # init stuff, do stuff ...
-  $self->{'prefix'} = '';
-
-  $self->{'_socket'} = IO::Socket::INET->new( PeerAddr => $self->{'host'},
-                                              PeerPort => $self->{'port'},
-                                              Proto    => 'udp');
-}
-
-sub namespace
-{
+sub namespace {
 	my $self = shift;
-  $self->{'namespace'} = $self->{'prefix'} = shift;
+	$self->{'namespace'} = shift;
 }
 
 # Sends an increment (count = 1) for the given stat to the statsd server.
@@ -77,12 +56,11 @@ sub namespace
 # @option opts [Numeric] :sample_rate sample rate, 1 for always
 # @option opts [Array<String>] :tags An array of tags
 # @see #count
-sub increment
-{
+sub increment {
 	my $self = shift;
 	my $stat = shift;
-  my $opts = shift || {};
-  $self->count( $stat, 1, $opts );
+	my $opts = shift || {};
+	$self->count( $stat, 1, $opts );
 }
 
 # Sends a decrement (count = -1) for the given stat to the statsd server.
@@ -92,12 +70,11 @@ sub increment
 # @option opts [Numeric] :sample_rate sample rate, 1 for always
 # @option opts [Array<String>] :tags An array of tags
 # @see #count
-sub decrement
-{
+sub decrement {
 	my $self = shift;
 	my $stat = shift;
-  my $opts = shift || {};
-  $self->count( $stat, -1, $opts );
+  	my $opts = shift || {};
+  	$self->count( $stat, -1, $opts );
 }
 
 # Sends an arbitrary count for the given stat to the statsd server.
@@ -107,13 +84,12 @@ sub decrement
 # @param [Hash] opts the options to create the metric with
 # @option opts [Numeric] :sample_rate sample rate, 1 for always
 # @option opts [Array<String>] :tags An array of tags
-sub count
-{
+sub count {
 	my $self  = shift;
 	my $stat  = shift;
-  my $count = shift; 
-  my $opts  = shift || {};
-  $self->send_stats( $stat, $count, 'c', $opts );
+  	my $count = shift;
+  	my $opts  = shift || {};
+  	$self->send_stats( $stat, $count, 'c', $opts );
 }
 
 # Sends an arbitary gauge value for the given stat to the statsd server.
@@ -132,13 +108,12 @@ sub count
 ##def gauge(stat, value, opts={})
 ##	send_stats stat, value, :g, opts
 ##end
-sub gauge
-{
+sub gauge {
 	my $self  = shift;
 	my $stat  = shift;
-  my $value = shift; 
-  my $opts  = shift || {};
-  $self->send_stats( $stat, $value, 'g', $opts );
+  	my $value = shift;
+  	my $opts  = shift || {};
+  	$self->send_stats( $stat, $value, 'g', $opts );
 }
 
 # Sends a value to be tracked as a histogram to the statsd server.
@@ -153,13 +128,12 @@ sub gauge
 ##def histogram(stat, value, opts={})
 ##	send_stats stat, value, :h, opts
 ##end
-sub histogram
-{
+sub histogram {
 	my $self  = shift;
 	my $stat  = shift;
-  my $value = shift; 
-  my $opts  = shift || {};
-  $self->send_stats( $stat, $value, 'h', $opts );
+  	my $value = shift;
+  	my $opts  = shift || {};
+  	$self->send_stats( $stat, $value, 'h', $opts );
 }
 
 # Sends a timing (in ms) for the given stat to the statsd server. The
@@ -175,13 +149,12 @@ sub histogram
 ##def timing(stat, ms, opts={})
 ##	send_stats stat, ms, :ms, opts
 ##end
-sub timing
-{
+sub timing {
 	my $self = shift;
 	my $stat = shift;
-  my $ms   = shift; 
-  my $opts = shift || {};
-  $self->send_stats( $stat, $ms, 'ms', $opts );
+  	my $ms   = shift;
+  	my $opts = shift || {};
+  	$self->send_stats( $stat, $ms, 'ms', $opts );
 }
 
 # Reports execution time of the provided block using {#timing}.
@@ -213,44 +186,83 @@ sub timing
 ##def set(stat, value, opts={})
 ##	send_stats stat, value, :s, opts
 ##end
-sub set
-{
+sub set {
 	my $self  = shift;
 	my $stat  = shift;
-  my $value = shift; 
-  my $opts  = shift || {};
-  $self->send_stats( $stat, $value, 's', $opts );
+  	my $value = shift;
+  	my $opts  = shift || {};
+  	$self->send_stats( $stat, $value, 's', $opts );
 }
 
-sub send_stats
-{
+sub send_stats {
 	my $self  = shift;
 	my $stat  = shift;
-  my $delta = shift;
-  my $type  = shift;
-  my $opts  = shift || {};
+  	my $delta = shift;
+  	my $type  = shift;
+  	my $opts  = shift || {};
 
-  my $sample_rate = defined $opts->{'sample_rate'} ? $opts->{'sample_rate'} : 1;
-  if( $sample_rate == 1 )
-	{
-      $stat =~ s/::/./g;
-			$stat =~ s/[:|@]/_/g;
-      my $rate = '';
-      $rate = "|\@${sample_rate}" unless $sample_rate == 1;
-      my $tags = '';
-      $tags = "|#".join(',',@{$opts->{'tags'}}) if $opts->{'tags'};
-			my $message = $self->{'prefix'}."${stat}:${delta}|${type}${rate}${tags}";
-			#print $message."\n";
-      $self->send_to_socket( $message );
+  	my $sample_rate = defined $opts->{'sample_rate'} ? $opts->{'sample_rate'} : 1;
+  	if( $sample_rate == 1 || rand() <= $sample_rate ) {
+		$stat =~ s/::/./g;
+		$stat =~ s/[:|@]/_/g;
+		my $rate = '';
+		$rate = "|\@${sample_rate}" unless $sample_rate == 1;
+		my $tags = '';
+		$tags = "|#".join(',',@{$opts->{'tags'}}) if $opts->{'tags'};
+		my $message = $self->{'namespace'}."${stat}:${delta}|${type}${rate}${tags}";
+		#print $message."\n";
+		$self->send_to_socket( $message );
 	}
 }
 
-sub send_to_socket
-{
+sub send_to_socket {
 	my $self = shift;
 	my $message = shift;
-  my $ret = $self->{'_socket'}->send( $message );
+	my $ret = $self->_socket()->send( $message );
 	#print "Return from send :$ret:\n";
 }
-1;
 
+1;
+__END__
+
+=encoding utf-8
+
+=head1 NAME
+
+DataDog::DogStatsd - A Perl client for DogStatsd
+
+=head1 SYNOPSIS
+
+  	use DataDog::DogStatsd;
+
+  	my $stat = DataDog::DogStatsd->new;
+	$stat->increment( 'user.login', { tags => [ $s->cs->param( 'loginName' ) ] } );
+
+=head1 DESCRIPTION
+
+DataDog::DogStatsd is a Perl client for DogStatsd
+
+=head1 METHODS
+
+=head2 new
+
+=over 4
+
+=item * host
+
+default to 127.0.0.1
+
+=item * port
+
+default to 8125
+
+=item * namespace
+
+default to ''
+
+=back
+
+=head2 increment
+
+	$stat->increment( 'user.login' );
+	$stat->increment( 'user.login', { tags => [ $s->cs->param( 'loginName' ) ] } );
